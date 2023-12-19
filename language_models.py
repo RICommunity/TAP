@@ -5,7 +5,7 @@ import time
 import torch
 import gc
 from typing import Dict, List
-import google.generativeai as palm
+import google.generativeai as genai
 import urllib3
 from copy import deepcopy
 
@@ -257,7 +257,7 @@ class PaLM():
 
     def __init__(self, model_name) -> None:
         self.model_name = model_name
-        palm.configure(api_key=self.API_KEY) 
+        genai.configure(api_key=self.API_KEY) 
 
     def generate(self, conv: List, 
                 max_n_tokens: int, 
@@ -275,7 +275,7 @@ class PaLM():
         output = self.API_ERROR_OUTPUT
         for _ in range(self.API_MAX_RETRY):            
             try:
-                completion = palm.chat(
+                completion = genai.chat(
                     messages=conv,
                     temperature=temperature,
                     top_p=top_p
@@ -289,6 +289,69 @@ class PaLM():
                     # Use this approximation since PaLM does not allow
                     # to specify max_tokens. Each token is approximately 4 characters.
                     output = output[:(max_n_tokens*4)] 
+                break
+            except Exception as e:
+                print(type(e), e)
+                time.sleep(self.API_RETRY_SLEEP)
+        
+            time.sleep(self.API_QUERY_SLEEP)
+        return output
+    
+    def batched_generate(self, 
+                        convs_list: List[List[Dict]],
+                        max_n_tokens: int, 
+                        temperature: float,
+                        top_p: float = 1.0,):
+        return [self.generate(conv, max_n_tokens, temperature, top_p) for conv in convs_list]
+
+
+class GeminiPro():
+    API_RETRY_SLEEP = 10
+    API_ERROR_OUTPUT = "$ERROR$"
+    API_QUERY_SLEEP = 1
+    API_MAX_RETRY = 5
+    API_TIMEOUT = 20
+    default_output = "I'm sorry, but I cannot assist with that request."
+    API_KEY = os.getenv("PALM_API_KEY")
+
+    def __init__(self, model_name) -> None:
+        self.model_name = model_name
+        genai.configure(api_key=self.API_KEY) 
+
+    def generate(self, conv: List, 
+                max_n_tokens: int, 
+                temperature: float,
+                top_p: float):
+        '''
+        Args:
+            conv: List of dictionaries, 
+            max_n_tokens: int, max number of tokens to generate
+            temperature: float, temperature for sampling
+            top_p: float, top p for sampling
+        Returns:
+            str: generated response
+        '''
+        output = self.API_ERROR_OUTPUT
+        for _ in range(self.API_MAX_RETRY):            
+            try:
+                model = genai.GenerativeModel(self.model_name)
+                output = model.generate_content(
+                    contents = conv,
+                    generation_config = genai.GenerationConfig(
+                        candidate_count = 1,
+                        temperature = temperature,
+                        top_p = top_p,
+                        max_output_tokens=max_n_tokens,
+                    )
+                )
+
+                if output is None:
+                    # If PaLM refuses to output and returns None, we replace it with a default output
+                    output = self.default_output
+                else:
+                    # Use this approximation since PaLM does not allow
+                    # to specify max_tokens. Each token is approximately 4 characters.
+                    output = output.text
                 break
             except Exception as e:
                 print(type(e), e)

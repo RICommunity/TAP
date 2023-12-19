@@ -1,6 +1,6 @@
 
 import common
-from language_models import GPT, PaLM, HuggingFace, APIModelLlama7B, APIModelVicuna13B
+from language_models import GPT, PaLM, HuggingFace, APIModelLlama7B, APIModelVicuna13B, GeminiPro
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from config import VICUNA_PATH, LLAMA_PATH, ATTACK_TEMP, TARGET_TEMP, ATTACK_TOP_P, TARGET_TOP_P, MAX_PARALLEL_STREAMS 
@@ -216,6 +216,8 @@ def load_indiv_model(model_name):
         lm = GPT(model_name)
     elif model_name == "palm-2":
         lm = PaLM(model_name)
+    elif model_name == "gemini-pro":
+        lm = GeminiPro(model_name)
     elif model_name == 'llama-2-api-model':
         lm = APIModelLlama7B(model_name)
     elif model_name == 'vicuna-api-model':
@@ -282,6 +284,10 @@ def get_model_path_and_template(model_name):
         "palm-2":{
             "path":"palm-2",
             "template":"palm-2"
+        },
+        "gemini-pro": {
+            "path": "gemini-pro",
+            "template": "gemini-pro"
         }
     }
     path, template = full_model_dict[model_name]["path"], full_model_dict[model_name]["template"]

@@ -293,7 +293,9 @@ if __name__ == '__main__':
                  "gpt-4",
                  'gpt-4-turbo', 
                  'gpt-4-1106-preview', # This is same as gpt-4-turbo
-                 "palm-2"]
+                 "palm-2",
+                 "gemini-pro",
+                 ]
     )
     parser.add_argument(
         "--target-max-n-tokens",
