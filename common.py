@@ -3,6 +3,10 @@ import random
 import string 
 import logging
 from fastchat.model import get_conversation_template
+from langchain.chains import LLMChain
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder
+from langchain_core.messages import SystemMessage
+from langchain.chains.conversation.memory import ConversationBufferMemory
 
 # Metadata used to store our results
 STORE_FOLDER = '' 
@@ -60,4 +64,16 @@ def conv_template(template_name, self_id=None, parent_id=None):
     template.self_id = self_id
     template.parent_id = parent_id
 
-    return template 
+    return template
+
+def ChatConversation(system_prompt):
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+    prompt = ChatPromptTemplate.from_messages([
+        SystemMessage(content=system_prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        HumanMessagePromptTemplate.from_template("{human_input}")
+    ])
+
+    return prompt
+

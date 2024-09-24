@@ -1,6 +1,6 @@
 
 import common
-from language_models import GPT, PaLM, HuggingFace, APIModelLlama7B, APIModelVicuna13B, GeminiPro
+from language_models import GPT, PaLM, HuggingFace, APIModelLlama7B, APIModelVicuna13B, GeminiPro, ChatGroqq
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from config import VICUNA_PATH, LLAMA_PATH, ATTACK_TEMP, TARGET_TEMP, ATTACK_TOP_P, TARGET_TOP_P, MAX_PARALLEL_STREAMS 
@@ -88,11 +88,12 @@ class AttackLLM():
         for conv, prompt in zip(convs_list, prompts_list):
             conv.append_message(conv.roles[0], prompt)
             # Get prompts
+            
             if "gpt" in self.model_name:
                 full_prompts.append(conv.to_openai_api_messages())
             else:
                 conv.append_message(conv.roles[1], init_message)
-                full_prompts.append(conv.get_prompt()[:-len(conv.sep2)])
+                full_prompts.append(conv.get_prompt())#[:-len(conv.sep2)])
             
         for _ in range(self.max_n_attack_attempts):
             # Subset conversations based on indices to regenerate
@@ -222,6 +223,8 @@ def load_indiv_model(model_name):
         lm = APIModelLlama7B(model_name)
     elif model_name == 'vicuna-api-model':
         lm = APIModelVicuna13B(model_name)
+    elif model_name == 'chatgroq':
+        lm = ChatGroqq(model_name)
     else:
         model = AutoModelForCausalLM.from_pretrained(
                 model_path, 
@@ -264,6 +267,10 @@ def get_model_path_and_template(model_name):
         "gpt-3.5-turbo": {
             "path": "gpt-3.5-turbo",
             "template":"gpt-3.5-turbo"
+        },
+        "chatgroq": {
+            "path": "chatgroq",
+            "template":"chatgroq"
         },
         "vicuna":{
             "path": VICUNA_PATH,

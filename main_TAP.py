@@ -108,8 +108,8 @@ def main(args):
     evaluator_llm = load_evaluator(args)
     print('Done loading evaluator!', flush=True)
     
-    logger = WandBLogger(args, system_prompt)
-    print('Done logging!', flush=True)
+    #logger = WandBLogger(args, system_prompt)
+    #print('Done logging!', flush=True)
 
     # Initialize conversations
     batchsize = args.n_streams
@@ -189,11 +189,26 @@ def main(args):
         ############################################################
         target_response_list = target_llm.get_response(adv_prompt_list)
         print("Finished getting target responses.") 
-
         # Get judge-scores (i.e., likelihood of jailbreak) from Evaluator
         judge_scores = evaluator_llm.judge_score(adv_prompt_list, target_response_list)
         print("Finished getting judge scores from evaluator.")
 
+    
+        print("=========================")
+        print("on_topic_scores", on_topic_scores)
+        print("=========================")
+        print("judge_scores", judge_scores)
+        print("=========================")
+        print("adv_prompt_list", adv_prompt_list)
+        print("=========================")
+        print("improv_list", improv_list)
+        print("=========================")
+        print("convs_list", convs_list)
+        print("=========================")
+        print("target_response_list", target_response_list)
+        print("=========================")
+        print("extracted_attack_list", extracted_attack_list)
+        print("=========================")
         ############################################################
         #   PRUNE: PHASE 2 
         ############################################################
@@ -216,21 +231,24 @@ def main(args):
             attack_params=attack_params) 
 
         # WandB log values
+        '''
         logger.log(iteration, 
-                extracted_attack_list,
+                #extracted_attack_list,
                 target_response_list,
                 judge_scores,
                 on_topic_scores,
                 conv_ids=[c.self_id for c in convs_list],
                 parent_conv_ids=[c.parent_id for c in convs_list])
+                '''
 
         # Truncate conversation to avoid context length issues
         for conv in convs_list:
             # Note that this does not delete the conv.role (i.e., the system prompt)
             conv.messages = conv.messages[-2*(args.keep_last_n):]
-
+        
         # Early stopping criterion
         if any([score == 10 for score in judge_scores]):
+
             print("Found a jailbreak. Exiting.")
             break
 
@@ -246,7 +264,7 @@ def main(args):
                     for target_response, score in zip(target_response_list, judge_scores)
             ] 
 
-    logger.finish()
+    #logger.finish()
 
 
 if __name__ == '__main__':
@@ -256,7 +274,7 @@ if __name__ == '__main__':
     ########### Attack model parameters ##########
     parser.add_argument(
         "--attack-model",
-        default = "vicuna",
+        default = "chatgroq",
         help = "Name of attacking model.",
         choices=["vicuna", 
                  "vicuna-api-model", 
@@ -264,7 +282,8 @@ if __name__ == '__main__':
                  "gpt-4", 
                  "gpt-4-turbo", 
                  "gpt-4-1106-preview", # This is same as gpt-4-turbo
-                 'llama-2-api-model']
+                 'llama-2-api-model',
+                 "chatgroq"]
     )
     parser.add_argument(
         "--attack-max-n-tokens",
@@ -283,7 +302,7 @@ if __name__ == '__main__':
     ########### Target model parameters ##########
     parser.add_argument(
         "--target-model",
-        default = "vicuna",
+        default = "chatgroq",
         help = "Name of target model.",
         choices=["llama-2",
                  'llama-2-api-model', 
@@ -295,6 +314,7 @@ if __name__ == '__main__':
                  'gpt-4-1106-preview', # This is same as gpt-4-turbo
                  "palm-2",
                  "gemini-pro",
+                 "chatgroq",
                  ]
     )
     parser.add_argument(
@@ -308,12 +328,13 @@ if __name__ == '__main__':
     ############ Evaluator model parameters ##########
     parser.add_argument(
         "--evaluator-model",
-        default="gpt-3.5-turbo",
+        default="chatgroq",
         help="Name of evaluator model.",
         choices=["gpt-3.5-turbo", 
                  "gpt-4", 
                  "gpt-4-turbo", 
-                 "gpt-4-1106-preview", 
+                 "gpt-4-1106-preview",
+                 "chatgroq",
                  "no-evaluator"]
     )
     parser.add_argument(
