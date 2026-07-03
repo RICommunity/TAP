@@ -26,6 +26,9 @@ def extract_json(s):
         dict: A dictionary containing the extracted values.
         str: The cleaned JSON string.
     """
+    if not s:
+        return None, None
+
     # Extract the string that looks like a JSON
     start_pos = s.find("{") 
     end_pos = s.find("}") + 1  # +1 to include the closing brace 

@@ -152,7 +152,12 @@ class OpenRouter(LanguageModel):
                     time.sleep(self.API_RETRY_SLEEP)
                     continue
 
-                output = resp_json["choices"][0]["message"]["content"]
+                content = resp_json["choices"][0]["message"].get("content")
+                if content is None:
+                    print("OpenRouter returned empty content for model:", self.api_model_id)
+                    time.sleep(self.API_RETRY_SLEEP)
+                    continue
+                output = content
                 break
             except Exception as e:
                 print('exception!', type(e), e)
