@@ -10,7 +10,8 @@ urllib3==2.1.0          # used to call the OpenRouter HTTP API
 wandb==0.16.1
 pyarrow
 fastparquet
-python-dotenv           # loads OPENROUTER_API_KEY from .env
+python-dotenv   
+tqdm        # loads OPENROUTER_API_KEY from .env
 
 # --- Disabled back-ends ----------------------------------------------------
 # The packages below are only needed for models that are NOT served through
