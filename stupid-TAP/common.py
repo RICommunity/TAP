@@ -10,6 +10,37 @@ from fastchat.conversation import get_conv_template
 # Metadata used to store our results
 STORE_FOLDER = '' 
 ITER_INDEX = '' 
+DEBUG = False
+
+
+def debug_model_io(role, model_id, messages, output, *,
+                   max_n_tokens=None, temperature=None, top_p=None, batch_index=None):
+    """Print model I/O to stdout when DEBUG is enabled (captured in .log files)."""
+    if not DEBUG:
+        return
+
+    header = f"========== DEBUG {role}"
+    if batch_index is not None:
+        header += f" [{batch_index}]"
+    header += f" ({model_id}) =========="
+    print(header, flush=True)
+    print("--- input ---", flush=True)
+    for msg in messages:
+        msg_role = msg.get("role", "?")
+        content = msg.get("content", "")
+        print(f"[{msg_role}]\n{content}\n", flush=True)
+    print("--- output ---", flush=True)
+    print(output if output is not None else "<empty>", flush=True)
+    params = []
+    if max_n_tokens is not None:
+        params.append(f"max_tokens={max_n_tokens}")
+    if temperature is not None:
+        params.append(f"temperature={temperature}")
+    if top_p is not None:
+        params.append(f"top_p={top_p}")
+    if params:
+        print(f"--- params: {', '.join(params)} ---", flush=True)
+    print(flush=True) 
 
 def random_string(n):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
