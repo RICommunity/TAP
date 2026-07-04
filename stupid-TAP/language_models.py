@@ -1,10 +1,12 @@
 import os
 import time
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import urllib3
 from dotenv import load_dotenv
+
+import common
 
 # Load OPENROUTER_API_KEY (and any other keys) from the local .env file.
 load_dotenv()
@@ -81,13 +83,24 @@ def is_openrouter_model(model_name: str) -> bool:
 
 
 class OpenRouter(LanguageModel):
-    API_RETRY_SLEEP = 10
+    API_RETRY_SLEEP = 3
     API_ERROR_OUTPUT = "$ERROR$"
     API_QUERY_SLEEP = 0.5
-    API_MAX_RETRY = 20
+    API_MAX_RETRY = 5
     API_TIMEOUT = 100
 
     API_HOST_LINK = "https://openrouter.ai/api/v1/chat/completions"
+
+    @staticmethod
+    def _should_retry_error(error) -> bool:
+        """Only retry transient OpenRouter failures (rate limits, overload)."""
+        if not isinstance(error, dict):
+            return False
+        code = error.get("code")
+        if code in (429, 500, 502, 503, 504):
+            return True
+        message = str(error.get("message", "")).lower()
+        return any(token in message for token in ("rate limit", "timeout", "overloaded", "temporarily"))
 
     def __init__(self, model_name):
         super().__init__(model_name)
@@ -109,7 +122,9 @@ class OpenRouter(LanguageModel):
     def generate(self, conv: List[Dict],
                 max_n_tokens: int,
                 temperature: float,
-                top_p: float):
+                top_p: float,
+                role: str = "model",
+                batch_index: Optional[int] = None):
         '''
         Args:
             conv: List of dictionaries, OpenAI API chat-message format
@@ -129,7 +144,7 @@ class OpenRouter(LanguageModel):
             "top_p": top_p,
         }
 
-        for _ in range(self.API_MAX_RETRY):
+        for attempt in range(self.API_MAX_RETRY):
             try:
                 resp = self._http.request(
                     "POST",
@@ -145,33 +160,75 @@ class OpenRouter(LanguageModel):
                     timeout=urllib3.Timeout(self.API_TIMEOUT),
                 )
 
+                if resp.status >= 400:
+                    print(f"OpenRouter HTTP {resp.status} for {self.api_model_id}", flush=True)
+                    if attempt + 1 < self.API_MAX_RETRY:
+                        time.sleep(self.API_RETRY_SLEEP)
+                        continue
+                    break
+
                 resp_json = json.loads(resp.data.decode("utf-8"))
 
                 if "error" in resp_json:
-                    print("OpenRouter error:", resp_json["error"])
-                    time.sleep(self.API_RETRY_SLEEP)
-                    continue
+                    err = resp_json["error"]
+                    print("OpenRouter error:", err, flush=True)
+                    if self._should_retry_error(err) and attempt + 1 < self.API_MAX_RETRY:
+                        time.sleep(self.API_RETRY_SLEEP)
+                        continue
+                    break
 
-                content = resp_json["choices"][0]["message"].get("content")
-                if content is None:
-                    print("OpenRouter returned empty content for model:", self.api_model_id)
-                    time.sleep(self.API_RETRY_SLEEP)
-                    continue
+                choice = resp_json["choices"][0]
+                content = choice.get("message", {}).get("content")
+                finish_reason = choice.get("finish_reason")
+
+                if content is None or not str(content).strip():
+                    # Content filters / refusals return empty bodies — retrying won't help.
+                    print(
+                        f"OpenRouter empty content for {self.api_model_id} "
+                        f"(finish_reason={finish_reason!r})",
+                        flush=True,
+                    )
+                    break
+
                 output = content
                 break
             except Exception as e:
-                print('exception!', type(e), e)
-                time.sleep(self.API_RETRY_SLEEP)
+                print('exception!', type(e), e, flush=True)
+                if attempt + 1 < self.API_MAX_RETRY:
+                    time.sleep(self.API_RETRY_SLEEP)
+                    continue
+                break
 
             time.sleep(self.API_QUERY_SLEEP)
+        common.debug_model_io(
+            role,
+            self.api_model_id,
+            conv,
+            output,
+            max_n_tokens=max_n_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            batch_index=batch_index,
+        )
         return output
 
     def batched_generate(self,
                         convs_list: List[List[Dict]],
                         max_n_tokens: int,
                         temperature: float,
-                        top_p: float = 1.0,):
-        return [self.generate(conv, max_n_tokens, temperature, top_p) for conv in convs_list]
+                        top_p: float = 1.0,
+                        role: str = "model"):
+        return [
+            self.generate(
+                conv,
+                max_n_tokens,
+                temperature,
+                top_p,
+                role=role,
+                batch_index=i if len(convs_list) > 1 else None,
+            )
+            for i, conv in enumerate(convs_list)
+        ]
 
 
 # ===========================================================================
