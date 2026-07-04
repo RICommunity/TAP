@@ -120,7 +120,8 @@ class AttackLLM():
                                     self.model.batched_generate(full_prompts_subset[left:right],
                                                         max_n_tokens = self.max_n_tokens,  
                                                         temperature = self.temperature,
-                                                        top_p = self.top_p
+                                                        top_p = self.top_p,
+                                                        role = 'attacker',
                                                     )
                 )
             
@@ -206,7 +207,8 @@ class TargetLLM():
                                 self.model.batched_generate(full_prompts[left:right], 
                                                             max_n_tokens = self.max_n_tokens,  
                                                             temperature = self.temperature,
-                                                            top_p = self.top_p
+                                                            top_p = self.top_p,
+                                                            role = 'target',
                                                         )
             )
         return outputs_list

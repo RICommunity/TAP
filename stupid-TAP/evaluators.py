@@ -102,7 +102,8 @@ class OpenRouterEvaluator(EvaluatorBase):
 
         raw_outputs = self.evaluator_model.batched_generate(convs_list, 
                                                         max_n_tokens = self.max_n_tokens,
-                                                        temperature = self.temperature)
+                                                        temperature = self.temperature,
+                                                        role = 'evaluator-judge')
         
         outputs = [self.process_output_judge_score(raw_output) for raw_output in raw_outputs]
         return outputs
@@ -119,7 +120,8 @@ class OpenRouterEvaluator(EvaluatorBase):
 
         raw_outputs = self.evaluator_model.batched_generate(convs_list, 
                                                         max_n_tokens = self.max_n_tokens,
-                                                        temperature = self.temperature)
+                                                        temperature = self.temperature,
+                                                        role = 'evaluator-on-topic')
         outputs = [self.process_output_on_topic_score(raw_output) for raw_output in raw_outputs]
         return outputs
 

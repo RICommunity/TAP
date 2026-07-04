@@ -24,12 +24,15 @@ def debug_model_io(role, model_id, messages, output, *,
         header += f" [{batch_index}]"
     header += f" ({model_id}) =========="
     print(header, flush=True)
-    print("--- input ---", flush=True)
+    print("input >>>>>>>>>>>>", flush=True)
     for msg in messages:
         msg_role = msg.get("role", "?")
-        content = msg.get("content", "")
+        if msg_role == "system":
+            content = "<<SYSTEM_PROMPT>>"
+        else:
+            content = msg.get("content", "")
         print(f"[{msg_role}]\n{content}\n", flush=True)
-    print("--- output ---", flush=True)
+    print("<<<<<<<<<<<<<<<<< output ", flush=True)
     print(output if output is not None else "<empty>", flush=True)
     params = []
     if max_n_tokens is not None:
