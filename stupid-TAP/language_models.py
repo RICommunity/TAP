@@ -53,6 +53,7 @@ class LanguageModel():
 OPENROUTER_MODELS = {
     # OpenAI
     "gpt-4o-mini":       "openai/gpt-4o-mini",
+    "gpt-4.1":           "openai/gpt-4.1",
     "gpt-4o":            "openai/gpt-4o",
     "gpt-4-turbo":       "openai/gpt-4-turbo",
     "gpt-3.5-turbo":     "openai/gpt-3.5-turbo",
