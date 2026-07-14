@@ -27,10 +27,7 @@ def debug_model_io(role, model_id, messages, output, *,
     print("❓❓❓❓❓❓❓❓❓❓ input ❓❓❓❓❓❓❓❓❓❓", flush=True)
     for msg in messages:
         msg_role = msg.get("role", "?")
-        if msg_role == "system":
-            content = "<<SYSTEM_PROMPT>>"
-        else:
-            content = msg.get("content", "")
+        content = msg.get("content", "")
         print(f"[{msg_role}]\n{content}\n", flush=True)
     print("🤖🤖🤖🤖🤖🤖🤖🤖🤖🤖 output 🤖🤖🤖🤖🤖🤖🤖🤖🤖🤖", flush=True)
     print(output if output is not None else "<empty>", flush=True)

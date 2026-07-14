@@ -233,6 +233,100 @@ class OpenRouter(LanguageModel):
         ]
 
 
+class OpenRouterEmbedder:
+    """Text embedding client for OpenRouter's OpenAI-compatible /embeddings API.
+
+    Used by the Phase-2 memory layer to embed attack goals (read path) and
+    successful adversarial prompts (write path). Vectors are produced here and
+    stored directly in Chroma, so the vector DB never needs a local embedding
+    model (no torch / onnxruntime dependency).
+    """
+
+    API_HOST_LINK = "https://openrouter.ai/api/v1/embeddings"
+    API_RETRY_SLEEP = 3
+    API_MAX_RETRY = 5
+    API_TIMEOUT = 100
+    # OpenRouter caps embedding batches; stay well under it.
+    MAX_BATCH = 96
+
+    def __init__(self, model_name: str = "openai/text-embedding-3-small"):
+        self.model_name = model_name
+        self.api_key = os.getenv("OPENROUTER_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "OPENROUTER_API_KEY is not set. Add it to stupid-TAP/.env "
+                "(see .env.example)."
+            )
+        self._http = urllib3.PoolManager()
+
+    def embed(self, texts: List[str]) -> List[List[float]]:
+        """Return one embedding vector per input string (order preserved)."""
+        if not texts:
+            return []
+
+        vectors: List[List[float]] = []
+        for left in range(0, len(texts), self.MAX_BATCH):
+            batch = texts[left:left + self.MAX_BATCH]
+            vectors.extend(self._embed_batch(batch))
+        return vectors
+
+    def embed_one(self, text: str) -> List[float]:
+        return self.embed([text])[0]
+
+    def _embed_batch(self, batch: List[str]) -> List[List[float]]:
+        body = {
+            "model": self.model_name,
+            "input": batch,
+            "encoding_format": "float",
+        }
+        last_error = None
+        for attempt in range(self.API_MAX_RETRY):
+            try:
+                resp = self._http.request(
+                    "POST",
+                    self.API_HOST_LINK,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com/RICommunity/TAP",
+                        "X-Title": "TAP",
+                    },
+                    body=json.dumps(body).encode("utf-8"),
+                    timeout=urllib3.Timeout(self.API_TIMEOUT),
+                )
+
+                if resp.status >= 400:
+                    last_error = f"HTTP {resp.status}: {resp.data.decode('utf-8')[:300]}"
+                    if attempt + 1 < self.API_MAX_RETRY:
+                        time.sleep(self.API_RETRY_SLEEP)
+                        continue
+                    break
+
+                resp_json = json.loads(resp.data.decode("utf-8"))
+                if "error" in resp_json:
+                    last_error = str(resp_json["error"])
+                    if attempt + 1 < self.API_MAX_RETRY:
+                        time.sleep(self.API_RETRY_SLEEP)
+                        continue
+                    break
+
+                # Response order matches input order per the OpenAI schema, but
+                # sort by "index" defensively in case a provider reorders them.
+                data = sorted(resp_json["data"], key=lambda d: d.get("index", 0))
+                return [d["embedding"] for d in data]
+            except Exception as e:  # noqa: BLE001 - surface after retries
+                last_error = f"{type(e).__name__}: {e}"
+                if attempt + 1 < self.API_MAX_RETRY:
+                    time.sleep(self.API_RETRY_SLEEP)
+                    continue
+                break
+
+        raise RuntimeError(
+            f"OpenRouter embeddings failed after {self.API_MAX_RETRY} attempts. "
+            f"Last error: {last_error}"
+        )
+
+
 # ===========================================================================
 # The classes below target back-ends that are NOT available through OpenRouter
 # (local GPU inference, self-hosted endpoints, Google's native SDK, and the

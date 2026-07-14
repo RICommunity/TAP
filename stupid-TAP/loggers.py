@@ -1,37 +1,35 @@
-import os
-import pytz
-import wandb
 import pandas as pd
-from datetime import datetime
 
-from os import listdir
-from os.path import isfile, join
+import common
 
-import common 
 
 class WandBLogger:
-    """WandB logger."""
+    """Run logger for TAP.
+
+    Historically this logged to Weights & Biases. W&B is no longer used (its
+    protobuf dependency conflicts with the rest of the environment), so this is
+    now a self-contained logger that accumulates the per-iteration results table
+    and writes it to ``<store_folder>/iter_<iter_index>_df`` (parquet) and the
+    matching ``.csv`` -- exactly the files that ``collect_metrics`` consumes.
+    The class name is kept for backwards compatibility with main_TAP.py.
+    """
 
     def __init__(self, args, system_prompt):
-        self.logger = wandb.init(
-            project = "jailbreak-llms",
-            config = {
-                "attack_model" : args.attack_model,
-                "target_model" : args.target_model,
-                "evaluator_model": args.evaluator_model,
-                "keep_last_n": args.keep_last_n,
-                "system_prompt": system_prompt,
-                "index": args.index,
-                "category": args.category,
-                "goal": args.goal,
-                "depth": args.depth,
-                "width": args.width,
-                "branching_factor": args.branching_factor,
-                "target_str": args.target_str,
-                "n_streams": args.n_streams,
-
-            }
-        )
+        self.config = {
+            "attack_model": args.attack_model,
+            "target_model": args.target_model,
+            "evaluator_model": args.evaluator_model,
+            "keep_last_n": args.keep_last_n,
+            "system_prompt": system_prompt,
+            "index": args.index,
+            "category": args.category,
+            "goal": args.goal,
+            "depth": args.depth,
+            "width": args.width,
+            "branching_factor": args.branching_factor,
+            "target_str": args.target_str,
+            "n_streams": args.n_streams,
+        }
         self.is_jailbroken = False
         self.query_to_jailbreak = 0
         self.table = pd.DataFrame()
@@ -42,16 +40,16 @@ class WandBLogger:
         self.jailbreak_response = None
 
     def log(self, iteration: int, attack_list: list, response_list: list, judge_scores: list, on_topic_scores: list = None, conv_ids: list = None, parent_conv_ids: list = None):
-        
+
         df = pd.DataFrame(attack_list)
         df["target_response"] = response_list
         df["judge_scores"] = judge_scores
         df["on_topic_scores"] = on_topic_scores if on_topic_scores is not None else [-1 for a in judge_scores]
         df["iter"] = iteration
-        
+
         df["conv_id"] = conv_ids if conv_ids is not None else [i+1 for i in range(len(response_list))]
         df["parent_conv_id"] = parent_conv_ids if parent_conv_ids is not None else [i+1 for i in range(len(response_list))]
-        
+
         self.table = pd.concat([self.table, df])
 
         self.query_to_jailbreak += len(response_list)
@@ -59,27 +57,15 @@ class WandBLogger:
         if any([score == 10 for score in judge_scores]):
             jailbreak_ind = judge_scores.index(10)
             if not self.is_jailbroken:
-                self.logger.log({"queries_to_jailbreak": self.query_to_jailbreak})
                 self.is_jailbroken = True
 
             self.jailbreak_prompt = attack_list[jailbreak_ind]["prompt"]
             self.jailbreak_response = response_list[jailbreak_ind]
 
-        self.logger.log({
-            "iteration":iteration,
-            "judge_scores":judge_scores,
-            "mean_judge_score_iter": sum(judge_scores) / len(judge_scores),
-            "is_jailbroken":self.is_jailbroken,
-            "max_judge_score":self.table["judge_scores"].max(),
-            "jailbreak_prompt":self.jailbreak_prompt,
-            "jailbreak_response":self.jailbreak_response,
-            "data": wandb.Table(data = self.table)})
-
         self.print_summary_stats(iteration)
 
     def finish(self):
         self.print_final_summary_stats()
-        self.logger.finish()
 
     def print_summary_stats(self, iter):
         bs = self.batch_size
